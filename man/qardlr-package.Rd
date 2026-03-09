@@ -45,7 +45,7 @@ Econometrics}, 188(1), 281-300. \doi{10.1016/j.jeconom.2015.01.003}
 
 Other contributors:
 \itemize{
-  \item Merwan Roudane (Original Stata implementation) [contributor]
+  \item
   \item Jin Seo Cho (Original methodology) [contributor]
   \item Tae-Hwan Kim (Original methodology) [contributor]
   \item Yongcheol Shin (Original methodology) [contributor]

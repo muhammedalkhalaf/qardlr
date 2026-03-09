@@ -52,7 +52,7 @@ Default is \code{rep(0.3, k)}.}
 \item{parallel}{Logical. Use parallel processing. Default is \code{FALSE}.}
 
 \item{ncores}{Integer. Number of cores for parallel processing.
-Default is \code{parallel::detectCores() - 1}.}
+Default is \code{parallel::detectCores - 1}.}
 }
 \value{
 An object of class \code{"qardl_mc"} containing:

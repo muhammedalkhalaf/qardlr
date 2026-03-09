@@ -109,9 +109,6 @@ If you use this package, please cite:
 
 ## Author
 
-**Dr. Merwan Roudane**  
-Email: merwanroudane920@gmail.com
-
 ## License
 
 GPL-3
