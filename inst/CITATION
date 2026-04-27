@@ -1,4 +1,4 @@
-﻿citHeader("To cite qardlr in publications use:")
+citHeader("To cite qardlr in publications use:")
 
 bibentry(
   bibtype  = "Manual",
