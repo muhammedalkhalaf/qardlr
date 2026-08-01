@@ -1,3 +1,23 @@
+## Inference notice for version 1.0.1 and earlier
+
+**The point estimates in qardlr 1.0.1 are usable. The standard errors, t ratios, confidence intervals and Wald p-values are not.** If you have published inference from this package, please read on.
+
+**1. The long-run standard errors have no asymptotic justification.** In the Cho, Kim and Shin (2015) framework the long-run coefficient beta(tau) converges at rate n with a mixture-normal limit, standardised by the random matrix M = n^-2 X'[I - W(W'W)^-1 W']X. Version 1.0.1 instead applies a delta method to summary.rq with se = "nid", which is the stationary sandwich derived for rate-root-n asymptotics with stationary regressors. It does not converge to the right object at the right rate, and because the projection of x_t on the lagged differences is absent, the reported standard errors will usually be too small when x is endogenous. Long-run coefficients therefore look more significant than they are.
+
+**2. The Wald tests for constancy across quantiles assume independence.** Quantile-regression estimates from one sample are positively correlated, with covariance factor min(tau_i, tau_j) - tau_i tau_j. The correct variance of a difference is V_ii + V_jj - 2 V_ij; the package uses V_ii + V_jj. For tau = 0.25 against tau = 0.50 the correct denominator is about 43 percent of the one used, so the statistic is roughly 43 percent of its correct value and the test under-rejects constancy. Since rejection is the evidence for quantile heterogeneity, the package systematically produces evidence against the phenomenon it exists to detect.
+
+**3. beta_se and beta_cov are different variance concepts for the same parameter.** beta_se includes a term for the variance of rho; beta_cov does not. Printed t ratios and Wald tests therefore use inconsistent variances.
+
+**4. The short-run gamma is read from the wrong design columns whenever the number of covariates differs from the lag order.** The design is built lag-major and the extraction uses a variable-major stride, so for k = 2, q = 3 the reported contemporaneous coefficients are x1_lag0 and x2_lag1. The long-run beta is not affected.
+
+**5. The model is not the Cho, Kim and Shin QARDL.** Their specification includes the differences Delta x_t through Delta x_t-q+1 alongside the level x_t; qardlr fits a plain levels ARDL. The difference block is what controls the endogeneity of the I(1) regressors, and it is the reason the asymptotic theory holds.
+
+**What is reliable in 1.0.1**: the point estimates of beta and rho. On a design with a true long-run coefficient of 0.80 and a true adjustment speed of -0.35, the package returned 0.792 / 0.786 / 0.806 and -0.373 / -0.346 / -0.351 at tau = 0.25 / 0.50 / 0.75.
+
+**Recommended for now**: report the point estimates, do not report the standard errors or the Wald tests, and set p and q explicitly rather than relying on the BIC selector, which uses a different criterion, a different design and a different estimator from the Stata original. Version 2.0.0 will implement the Cho, Kim and Shin covariance properly.
+
+---
+
 # qardlr: Quantile Autoregressive Distributed Lag Model
 
 R implementation of the Quantile Autoregressive Distributed Lag (QARDL) model by Cho, Kim & Shin (2015).
