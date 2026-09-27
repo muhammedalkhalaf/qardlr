@@ -88,7 +88,7 @@ summary.qardl <- function(object, wald = TRUE, digits = 4, ...) {
   }
   cat(strrep("=", 70), "\n")
   cat("  Reference: Cho, Kim & Shin (2015), Journal of Econometrics\n")
-  cat("  DOI: 10.1016/j.jeconom.2015.01.003\n")
+  cat("  DOI: 10.1016/j.jeconom.2015.05.003\n")
   cat(strrep("=", 70), "\n\n")
 
   # Model info

@@ -125,7 +125,7 @@ print(mc)
 
 If you use this package, please cite:
 
-> Cho, J.S., Kim, T.-H., & Shin, Y. (2015). Quantile cointegration in the autoregressive distributed-lag modeling framework. *Journal of Econometrics*, 188(1), 281-300. https://doi.org/10.1016/j.jeconom.2015.01.003
+> Cho, J.S., Kim, T.-H., & Shin, Y. (2015). Quantile cointegration in the autoregressive distributed-lag modeling framework. *Journal of Econometrics*, 188(1), 281-300. https://doi.org/10.1016/j.jeconom.2015.05.003
 
 ## Author
 

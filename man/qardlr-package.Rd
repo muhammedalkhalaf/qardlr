@@ -38,7 +38,7 @@ quantile-specific long-run equilibrium relationships and short-run dynamics.
 \references{
 Cho, J.S., Kim, T.-H., and Shin, Y. (2015). Quantile cointegration in the
 autoregressive distributed-lag modeling framework. \emph{Journal of
-Econometrics}, 188(1), 281-300. \doi{10.1016/j.jeconom.2015.01.003}
+Econometrics}, 188(1), 281-300. \doi{10.1016/j.jeconom.2015.05.003}
 }
 \author{
 \strong{Maintainer}: Muhammad Alkhalaf \email{muhammedalkhalaf@gmail.com} (\href{https://orcid.org/0009-0002-2677-9246}{ORCID})

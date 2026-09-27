@@ -26,7 +26,7 @@
 #' @references
 #' Cho, J.S., Kim, T.-H., & Shin, Y. (2015). Quantile cointegration in the
 #' autoregressive distributed-lag modeling framework. \emph{Journal of
-#' Econometrics}, 188(1), 281-300. \doi{10.1016/j.jeconom.2015.01.003}
+#' Econometrics}, 188(1), 281-300. \doi{10.1016/j.jeconom.2015.05.003}
 #'
 #' @examples
 #' data(qardl_sim)
