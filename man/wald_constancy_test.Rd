@@ -4,21 +4,25 @@
 \alias{wald_constancy_test}
 \title{Wald Constancy Test}
 \usage{
-wald_constancy_test(params, cov_array, nobs, param_name)
+wald_constancy_test(params, V, nobs, param_name)
 }
 \arguments{
 \item{params}{Parameter matrix (dim x ntau).}
 
-\item{cov_array}{Covariance array (dim x dim x ntau).}
+\item{V}{Joint covariance matrix of \code{as.vector(params)}.}
 
-\item{nobs}{Number of observations.}
+\item{nobs}{Number of observations (unused; kept for compatibility).}
 
 \item{param_name}{Name of parameter for labeling.}
 }
 \value{
-List with statistic, df, pvalue.
+List with statistic, df, pvalue. The degrees of freedom equal the
+  rank of the covariance matrix of the restrictions (the covariance of
+  gamma is of reduced rank, Cho, Kim and Shin, 2015, Theorem 1(ii)).
 }
 \description{
-Internal function to perform Wald test for parameter constancy.
+Internal function to test that a parameter vector is equal across all
+quantiles, using the joint covariance matrix across quantiles of Cho,
+Kim and Shin (2015).
 }
 \keyword{internal}

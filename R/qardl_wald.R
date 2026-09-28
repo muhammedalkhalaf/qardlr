@@ -24,7 +24,8 @@
 #'
 #' where \eqn{R} is a restriction matrix testing equality across quantiles,
 #' \eqn{\hat{\theta}} is the vector of parameter estimates, and \eqn{\hat{V}}
-#' is the estimated covariance matrix.
+#' is their joint covariance matrix across quantiles (Cho, Kim and Shin,
+#' 2015, Theorems 3 and 4).
 #'
 #' @references
 #' Cho, J.S., Kim, T.-H., & Shin, Y. (2015). Quantile cointegration in the
@@ -64,30 +65,37 @@ qardl_wald <- function(object, type = c("all", "beta", "phi", "gamma", "rho"),
 
   # Test beta constancy
   if (type %in% c("all", "beta")) {
-    beta_test <- wald_constancy_test(object$beta, object$beta_cov,
+    beta_test <- wald_constancy_test(object$beta, object$cov_joint$beta,
                                       object$nobs, "beta")
     tests$beta <- beta_test
   }
 
   # Test phi constancy
   if (type %in% c("all", "phi")) {
-    phi_test <- wald_constancy_test(object$phi, object$phi_cov,
+    phi_test <- wald_constancy_test(object$phi, object$cov_joint$phi,
                                      object$nobs, "phi")
     tests$phi <- phi_test
   }
 
   # Test gamma constancy
   if (type %in% c("all", "gamma")) {
-    gamma_test <- wald_constancy_test(object$gamma, object$gamma_cov,
-                                       object$nobs, "gamma")
-    tests$gamma <- gamma_test
+    # The covariance of gamma(tau) has rank one at each quantile (Cho, Kim
+    # and Shin, 2015, Theorem 1(ii)), so a joint test over several
+    # covariates is degenerate; test each covariate separately.
+    k <- object$k
+    for (v in seq_len(k)) {
+      sel <- (seq_len(ntau) - 1) * k + v
+      tests[[paste0("gamma[", object$indepvars[v], "]")]] <-
+        wald_constancy_test(object$gamma[v, , drop = FALSE],
+                            object$cov_joint$gamma[sel, sel, drop = FALSE],
+                            object$nobs, "gamma")
+    }
   }
 
   # Test rho constancy (scalar per quantile)
   if (type %in% c("all", "rho")) {
     rho_mat <- matrix(object$rho, nrow = 1)
-    rho_cov <- array(object$rho_se^2, dim = c(1, 1, ntau))
-    rho_test <- wald_constancy_test(rho_mat, rho_cov, object$nobs, "rho")
+    rho_test <- wald_constancy_test(rho_mat, object$cov_joint$rho, object$nobs, "rho")
     tests$rho <- rho_test
   }
 
@@ -125,82 +133,52 @@ qardl_wald <- function(object, type = c("all", "beta", "phi", "gamma", "rho"),
 
 #' Wald Constancy Test
 #'
-#' Internal function to perform Wald test for parameter constancy.
+#' Internal function to test that a parameter vector is equal across all
+#' quantiles, using the joint covariance matrix across quantiles of Cho,
+#' Kim and Shin (2015).
 #'
 #' @param params Parameter matrix (dim x ntau).
-#' @param cov_array Covariance array (dim x dim x ntau).
-#' @param nobs Number of observations.
+#' @param V Joint covariance matrix of \code{as.vector(params)}.
+#' @param nobs Number of observations (unused; kept for compatibility).
 #' @param param_name Name of parameter for labeling.
 #'
-#' @return List with statistic, df, pvalue.
+#' @return List with statistic, df, pvalue. The degrees of freedom equal the
+#'   rank of the covariance matrix of the restrictions (the covariance of
+#'   gamma is of reduced rank, Cho, Kim and Shin, 2015, Theorem 1(ii)).
 #'
 #' @keywords internal
-wald_constancy_test <- function(params, cov_array, nobs, param_name) {
-
+wald_constancy_test <- function(params, V, nobs, param_name) {
   dim_param <- nrow(params)
   ntau <- ncol(params)
-
-  if (ntau < 2) {
+  if (ntau < 2 || is.null(V) || anyNA(V))
     return(list(statistic = NA, df = NA, pvalue = NA))
-  }
-
-  # Number of restrictions: (ntau - 1) * dim_param
-  # Testing: param(tau_i) = param(tau_{i+1}) for all i
-
+  theta <- as.vector(params)
   n_restr <- (ntau - 1) * dim_param
-
-  # Build R matrix and compute Wald statistic
-  # Stack parameters: vec(params) = [param_tau1; param_tau2; ...]
-
-  theta <- as.vector(params)  # Column-major stacking
-
-  # Build block-diagonal covariance (assuming independence across quantiles)
-  V <- matrix(0, nrow = length(theta), ncol = length(theta))
-  for (t_idx in seq_len(ntau)) {
-    idx <- ((t_idx - 1) * dim_param + 1):(t_idx * dim_param)
-    V[idx, idx] <- cov_array[, , t_idx]
-  }
-
-  # Build R matrix: differences between adjacent quantiles
-  R <- matrix(0, nrow = n_restr, ncol = length(theta))
+  R <- matrix(0, n_restr, length(theta))
   row_idx <- 1
   for (t_idx in seq_len(ntau - 1)) {
     for (d in seq_len(dim_param)) {
-      # theta_{t_idx, d} - theta_{t_idx+1, d} = 0
-      col1 <- (t_idx - 1) * dim_param + d
-      col2 <- t_idx * dim_param + d
-      R[row_idx, col1] <- 1
-      R[row_idx, col2] <- -1
+      R[row_idx, (t_idx - 1) * dim_param + d] <- 1
+      R[row_idx, t_idx * dim_param + d] <- -1
       row_idx <- row_idx + 1
     }
   }
+  .wald_quadform(R %*% theta, R %*% V %*% t(R))
+}
 
-  # r vector (all zeros for equality test)
-  r <- rep(0, n_restr)
-
-  # Wald statistic: W = (R*theta - r)' * inv(R*V*R') * (R*theta - r)
-  diff <- R %*% theta - r
-  RVR <- R %*% V %*% t(R)
-
-  # Regularize if needed
-  RVR <- RVR + diag(1e-12, nrow(RVR))
-
-  RVR_inv <- tryCatch(
-    solve(RVR),
-    error = function(e) MASS::ginv(RVR)
-  )
-
-  W <- as.numeric(t(diff) %*% RVR_inv %*% diff)
-
-  if (W < 0) W <- abs(W)
-
-  pval <- stats::pchisq(W, df = n_restr, lower.tail = FALSE)
-
-  return(list(
-    statistic = W,
-    df = n_restr,
-    pvalue = pval
-  ))
+# Wald quadratic form with a rank-aware generalised inverse
+.wald_quadform <- function(d, S) {
+  S <- (S + t(S)) / 2
+  e <- eigen(S, symmetric = TRUE)
+  tol <- max(abs(e$values)) * 1e-10
+  keep <- e$values > tol
+  df <- sum(keep)
+  if (df == 0) return(list(statistic = NA, df = NA, pvalue = NA))
+  Sinv <- e$vectors[, keep, drop = FALSE] %*%
+    (t(e$vectors[, keep, drop = FALSE]) / e$values[keep])
+  W <- as.numeric(t(d) %*% Sinv %*% d)
+  list(statistic = W, df = df,
+       pvalue = stats::pchisq(W, df = df, lower.tail = FALSE))
 }
 
 
@@ -234,9 +212,9 @@ wald_pairwise_tests <- function(object, type) {
           b_j <- object$beta[v_idx, j]
           diff <- b_i - b_j
 
-          v_ii <- object$beta_cov[v_idx, v_idx, i]
-          v_jj <- object$beta_cov[v_idx, v_idx, j]
-          var_diff <- v_ii + v_jj
+          V <- object$cov_joint$beta
+          ii <- (i - 1) * k + v_idx; jj <- (j - 1) * k + v_idx
+          var_diff <- V[ii, ii] + V[jj, jj] - 2 * V[ii, jj]
 
           if (var_diff > 1e-15) {
             W <- diff^2 / var_diff
@@ -267,9 +245,9 @@ wald_pairwise_tests <- function(object, type) {
           phi_j <- object$phi[lag, j]
           diff <- phi_i - phi_j
 
-          v_ii <- object$phi_cov[lag, lag, i]
-          v_jj <- object$phi_cov[lag, lag, j]
-          var_diff <- v_ii + v_jj
+          V <- object$cov_joint$phi
+          ii <- (i - 1) * p + lag; jj <- (j - 1) * p + lag
+          var_diff <- V[ii, ii] + V[jj, jj] - 2 * V[ii, jj]
 
           if (var_diff > 1e-15) {
             W <- diff^2 / var_diff
@@ -301,9 +279,9 @@ wald_pairwise_tests <- function(object, type) {
           g_j <- object$gamma[v_idx, j]
           diff <- g_i - g_j
 
-          v_ii <- object$gamma_cov[v_idx, v_idx, i]
-          v_jj <- object$gamma_cov[v_idx, v_idx, j]
-          var_diff <- v_ii + v_jj
+          V <- object$cov_joint$gamma
+          ii <- (i - 1) * k + v_idx; jj <- (j - 1) * k + v_idx
+          var_diff <- V[ii, ii] + V[jj, jj] - 2 * V[ii, jj]
 
           if (var_diff > 1e-15) {
             W <- diff^2 / var_diff

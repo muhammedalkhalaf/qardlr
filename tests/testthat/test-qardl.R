@@ -81,3 +81,20 @@ test_that("coef and vcov methods work", {
   vcov_beta <- vcov(fit, type = "beta")
   expect_true(is.array(vcov_beta))
 })
+
+test_that("gamma0 picks the coefficients on x_t and beta = gamma / (1 - sum(phi))", {
+  data(qardl_sim)
+  fit <- qardl(y ~ x1 + x2, data = qardl_sim, tau = c(0.25, 0.5, 0.75), p = 2, q = 2)
+  expect_equal(unname(fit$gamma0), unname(fit$raw_coefs[c("x1_lag0", "x2_lag0"), ]))
+  expect_equal(unname(fit$gamma),
+               unname(fit$raw_coefs[c("x1_lag0", "x2_lag0"), ] +
+                        fit$raw_coefs[c("x1_lag1", "x2_lag1"), ]))
+  expect_equal(fit$beta, sweep(fit$gamma, 2, 1 - colSums(fit$phi), "/"))
+  ## Cho, Kim and Shin (2015) covariance of beta across quantiles:
+  ## (min(ti,tj) - ti tj) / (fi fj (1-sum phi_i)(1-sum phi_j)) (X'PX)^-1
+  V <- fit$cov_joint$beta
+  om <- unname(1 - colSums(fit$phi))
+  r12 <- V[1, 3] / V[1, 1]
+  expect_equal(r12, (0.25 - 0.25 * 0.5) / (0.25 * 0.75) *
+                 fit$fhat[1] * om[1] / (fit$fhat[2] * om[2]))
+})

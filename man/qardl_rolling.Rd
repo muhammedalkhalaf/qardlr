@@ -42,7 +42,7 @@ An object of class \code{"qardl_rolling"} containing:
   \item{rho}{Matrix of ECM coefficients (nwindows x ntau)}
   \item{wald_beta}{Matrix of beta constancy Wald statistics}
   \item{wald_phi}{Matrix of phi constancy Wald statistics}
-  \item{wald_gamma}{Matrix of gamma constancy Wald statistics}
+  \item{wald_gamma}{Matrix of gamma constancy Wald statistics, one column per covariate}
   \item{dates}{Vector of end dates for each window}
   \item{window}{Window size used}
   \item{method}{Method used ("rolling" or "recursive")}

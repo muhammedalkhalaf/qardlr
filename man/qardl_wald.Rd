@@ -39,7 +39,8 @@ The Wald test statistic is computed as:
 
 where \eqn{R} is a restriction matrix testing equality across quantiles,
 \eqn{\hat{\theta}} is the vector of parameter estimates, and \eqn{\hat{V}}
-is the estimated covariance matrix.
+is their joint covariance matrix across quantiles (Cho, Kim and Shin,
+2015, Theorems 3 and 4).
 }
 \examples{
 data(qardl_sim)

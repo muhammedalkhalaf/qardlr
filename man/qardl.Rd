@@ -44,12 +44,22 @@ parameterization. Default is \code{FALSE}.}
 An object of class \code{"qardl"} containing:
 \describe{
   \item{beta}{Long-run parameters matrix (k x ntau)}
-  \item{beta_se}{Standard errors for beta}
+  \item{beta_se, beta_cov}{Standard errors and covariance matrices of
+    beta (Cho, Kim and Shin, 2015, Theorem 2)}
   \item{phi}{Short-run AR parameters matrix (p x ntau)}
-  \item{phi_se}{Standard errors for phi}
-  \item{gamma}{Short-run impact parameters matrix (k x ntau)}
-  \item{gamma_se}{Standard errors for gamma}
-  \item{rho}{Speed of adjustment parameters (ECM coefficient)}
+  \item{phi_se, phi_cov}{Standard errors and covariances of phi
+    (Theorem 1 and equation 13)}
+  \item{gamma}{Level coefficients \eqn{\gamma(\tau) = \sum_j
+    \gamma_j(\tau)} (k x ntau), with standard errors \code{gamma_se}}
+  \item{gamma0, gamma0_se}{Coefficients on \eqn{x_t} (the impact of
+    \eqn{\Delta x_t} in the ECM form) with quantile regression standard
+    errors}
+  \item{rho, rho_se}{Speed of adjustment \eqn{\sum\phi_i(\tau) - 1}
+    and its standard error}
+  \item{cov_joint}{Joint covariance matrices of beta, phi, gamma and rho
+    across quantiles (Theorems 3 and 4), used by \code{qardl_wald}}
+  \item{fhat}{Estimated error densities at the quantiles (Gaussian
+    kernel, Bofinger bandwidth)}
   \item{tau}{Vector of estimated quantiles}
   \item{p}{AR lag order used}
   \item{q}{Distributed lag order used}
@@ -74,6 +84,9 @@ The QARDL(p,q) model is specified as:
 
 Long-run parameters are computed as:
 \deqn{\beta(\tau) = \frac{\sum_{j=0}^{q-1} \gamma_j(\tau)}{1 - \sum_{i=1}^{p} \phi_i(\tau)}}
+
+Standard errors and Wald tests follow Cho, Kim and Shin (2015); see
+\code{\link{cks_covariance}}.
 
 The speed of adjustment (ECM coefficient) is:
 \deqn{\rho(\tau) = \sum_{i=1}^{p} \phi_i(\tau) - 1}

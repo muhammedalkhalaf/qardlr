@@ -48,7 +48,7 @@ print.qardl <- function(x, digits = 4, ...) {
   # Short-run impact parameters (gamma)
   cat("\n")
   cat(strrep("-", 70), "\n")
-  cat("  Short-Run Impact Parameters: gamma(tau)\n")
+  cat("  Level Coefficients: gamma(tau) = sum of x_t, ..., x_{t-q+1} coefficients\n")
   cat(strrep("-", 70), "\n")
 
   print_param_table(x$gamma, x$gamma_se, x$tau, x$nobs, "Variable", digits)
@@ -137,7 +137,7 @@ summary.qardl <- function(object, wald = TRUE, digits = 4, ...) {
   # ============================================================
   cat("\n")
   cat(strrep("=", 70), "\n")
-  cat("  SHORT-RUN IMPACT PARAMETERS: gamma(tau)\n")
+  cat("  LEVEL COEFFICIENTS: gamma(tau) (sum over lags of x)\n")
   cat(strrep("=", 70), "\n\n")
 
   print_detailed_table(x$gamma, x$gamma_se, x$tau, x$nobs,

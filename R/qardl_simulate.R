@@ -74,9 +74,16 @@ qardl_simulate <- function(nobs = 200L, reps = 1000L,
   ntau <- length(tau)
 
   # Set defaults for true parameters
-  if (is.null(beta_true)) beta_true <- rep(1, k)
   if (is.null(phi_true)) phi_true <- rep(0.5, p)
-  if (is.null(gamma_true)) gamma_true <- rep(0.3, k)
+  # The DGP is y_t = sum(phi_i y_{t-i}) + gamma' x_t + u_t, so the long-run
+  # parameter is beta = gamma / (1 - sum(phi))
+  if (is.null(gamma_true)) {
+    gamma_true <- if (is.null(beta_true)) rep(0.3, k) else beta_true * (1 - sum(phi_true))
+  } else if (!is.null(beta_true)) {
+    warning("Both beta_true and gamma_true given; beta_true is recomputed from gamma_true and phi_true")
+  }
+  if (length(phi_true) != p) stop("phi_true must have length p")
+  beta_true <- gamma_true / (1 - sum(phi_true))
 
   if (length(beta_true) != k) stop("beta_true must have length k")
   if (length(phi_true) != p) stop("phi_true must have length p")
@@ -121,7 +128,7 @@ qardl_simulate <- function(nobs = 200L, reps = 1000L,
 
     # Compute long-run parameters
     lr <- tryCatch({
-      compute_longrun(est, k = k, tau = tau)
+      compute_longrun(est, k = k, tau = tau, y = y, X = X, constant = TRUE)
     }, error = function(e) NULL)
 
     if (is.null(lr)) next
@@ -129,10 +136,10 @@ qardl_simulate <- function(nobs = 200L, reps = 1000L,
     # Store estimates
     beta_sim[, , r] <- lr$beta
     phi_sim[, , r] <- est$phi
-    gamma_sim[, , r] <- est$gamma
+    gamma_sim[, , r] <- lr$gamma
     se_beta[, , r] <- lr$beta_se
-    se_phi[, , r] <- est$phi_se
-    se_gamma[, , r] <- est$gamma_se
+    se_phi[, , r] <- lr$phi_se
+    se_gamma[, , r] <- lr$gamma_se
 
     # Progress indicator
     if (r %% 100 == 0) {

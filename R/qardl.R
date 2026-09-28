@@ -22,12 +22,22 @@
 #' @return An object of class \code{"qardl"} containing:
 #' \describe{
 #'   \item{beta}{Long-run parameters matrix (k x ntau)}
-#'   \item{beta_se}{Standard errors for beta}
+#'   \item{beta_se, beta_cov}{Standard errors and covariance matrices of
+#'     beta (Cho, Kim and Shin, 2015, Theorem 2)}
 #'   \item{phi}{Short-run AR parameters matrix (p x ntau)}
-#'   \item{phi_se}{Standard errors for phi}
-#'   \item{gamma}{Short-run impact parameters matrix (k x ntau)}
-#'   \item{gamma_se}{Standard errors for gamma}
-#'   \item{rho}{Speed of adjustment parameters (ECM coefficient)}
+#'   \item{phi_se, phi_cov}{Standard errors and covariances of phi
+#'     (Theorem 1 and equation 13)}
+#'   \item{gamma}{Level coefficients \eqn{\gamma(\tau) = \sum_j
+#'     \gamma_j(\tau)} (k x ntau), with standard errors \code{gamma_se}}
+#'   \item{gamma0, gamma0_se}{Coefficients on \eqn{x_t} (the impact of
+#'     \eqn{\Delta x_t} in the ECM form) with quantile regression standard
+#'     errors}
+#'   \item{rho, rho_se}{Speed of adjustment \eqn{\sum\phi_i(\tau) - 1}
+#'     and its standard error}
+#'   \item{cov_joint}{Joint covariance matrices of beta, phi, gamma and rho
+#'     across quantiles (Theorems 3 and 4), used by \code{qardl_wald}}
+#'   \item{fhat}{Estimated error densities at the quantiles (Gaussian
+#'     kernel, Bofinger bandwidth)}
 #'   \item{tau}{Vector of estimated quantiles}
 #'   \item{p}{AR lag order used}
 #'   \item{q}{Distributed lag order used}
@@ -47,6 +57,9 @@
 #'
 #' Long-run parameters are computed as:
 #' \deqn{\beta(\tau) = \frac{\sum_{j=0}^{q-1} \gamma_j(\tau)}{1 - \sum_{i=1}^{p} \phi_i(\tau)}}
+#'
+#' Standard errors and Wald tests follow Cho, Kim and Shin (2015); see
+#' \code{\link{cks_covariance}}.
 #'
 #' The speed of adjustment (ECM coefficient) is:
 #' \deqn{\rho(\tau) = \sum_{i=1}^{p} \phi_i(\tau) - 1}
@@ -152,7 +165,8 @@ qardl <- function(formula, data, tau = c(0.25, 0.50, 0.75),
   est <- qardl_estimate(y, X, p = p, q = q, tau = tau, constant = constant)
 
   # Compute long-run parameters (beta)
-  beta_result <- compute_longrun(est, k = k, tau = tau)
+  beta_result <- compute_longrun(est, k = k, tau = tau, y = y, X = X,
+                                 constant = constant)
 
   # If ECM requested, compute ECM parameterization
   ecm_result <- NULL
@@ -167,13 +181,17 @@ qardl <- function(formula, data, tau = c(0.25, 0.50, 0.75),
     beta_se = beta_result$beta_se,
     beta_cov = beta_result$beta_cov,
     phi = est$phi,
-    phi_se = est$phi_se,
-    phi_cov = est$phi_cov,
-    gamma = est$gamma,
-    gamma_se = est$gamma_se,
-    gamma_cov = est$gamma_cov,
+    phi_se = beta_result$phi_se,
+    phi_cov = beta_result$phi_cov,
+    gamma = beta_result$gamma,
+    gamma_se = beta_result$gamma_se,
+    gamma_cov = beta_result$gamma_cov,
+    gamma0 = est$gamma,
+    gamma0_se = est$gamma_se,
     rho = beta_result$rho,
     rho_se = beta_result$rho_se,
+    cov_joint = beta_result$cov_joint,
+    fhat = beta_result$fhat,
     tau = tau,
     p = p,
     q = q,
@@ -275,7 +293,7 @@ qardl_estimate <- function(y, X, p, q, tau, constant = TRUE) {
         tryCatch(
           summary(fit, se = "ker", covariance = TRUE)$cov,
           error = function(e2) {
-            diag(length(coef(fit))) * 0.01
+            matrix(NA_real_, length(coef(fit)), length(coef(fit)))
           }
         )
       }
@@ -324,8 +342,9 @@ qardl_estimate <- function(y, X, p, q, tau, constant = TRUE) {
   gamma_cov <- array(NA, dim = c(k, k, ntau))
 
   for (t_idx in seq_along(tau)) {
-    # Extract contemporaneous coefficients (lag 0)
-    gamma_0_idx <- seq(1, k * q, by = q)
+    # Extract contemporaneous coefficients (lag 0). The design matrix
+    # orders the regressors by lag: x1_lag0, ..., xk_lag0, x1_lag1, ...
+    gamma_0_idx <- seq_len(k)
     if (all(gamma_0_idx <= nrow(gamma_raw))) {
       gamma[, t_idx] <- gamma_raw[gamma_0_idx, t_idx]
     }
@@ -367,7 +386,7 @@ qardl_estimate <- function(y, X, p, q, tau, constant = TRUE) {
       gamma_idx_var <- gamma_idx[var_idx]
       if (!is.null(vcov_mat) && all(gamma_idx_var <= nrow(vcov_mat)) && all(gamma_idx_var <= ncol(vcov_mat))) {
         sub_cov <- vcov_mat[gamma_idx_var, gamma_idx_var, drop = FALSE]
-        gamma_cumul_se[kk, t_idx] <- sqrt(sum(pmax(sub_cov, 0)))
+        gamma_cumul_se[kk, t_idx] <- sqrt(max(sum(sub_cov), 0))
       }
     }
 
@@ -425,74 +444,47 @@ qardl_estimate <- function(y, X, p, q, tau, constant = TRUE) {
 #' @return List containing beta, beta_se, beta_cov, rho, rho_se.
 #'
 #' @keywords internal
-compute_longrun <- function(est, k, tau) {
+compute_longrun <- function(est, k, tau, y, X, constant = TRUE) {
 
   ntau <- length(tau)
-  p <- est$p
-
-  # Long-run parameters: beta(tau) = gamma_cumul(tau) / (1 - rho(tau))
-  # where rho(tau) = sum(phi_i(tau))
-
-  beta <- matrix(NA, nrow = k, ncol = ntau)
-  beta_se <- matrix(NA, nrow = k, ncol = ntau)
-  beta_cov <- array(NA, dim = c(k, k, ntau))
-  rho <- numeric(ntau)
-  rho_se <- numeric(ntau)
-
-  for (t_idx in seq_along(tau)) {
-    # Sum of AR coefficients
-    rho[t_idx] <- sum(est$phi[, t_idx])
-
-    # Variance of rho = sum of all elements in phi covariance
-    rho_se[t_idx] <- sqrt(sum(est$phi_cov[, , t_idx]))
-
-    # Long-run multiplier
-    denom <- 1 - rho[t_idx]
-
-    if (abs(denom) < 1e-10) {
-      warning(sprintf("Near-unit root at tau = %.2f, long-run parameters may be unreliable",
-                      tau[t_idx]))
-      denom <- sign(denom) * 1e-10
-    }
-
-    # beta = gamma_cumul / (1 - rho)
-    beta[, t_idx] <- est$gamma_cumul[, t_idx] / denom
-
-    # Delta method for beta variance
-    # beta_j = g_j / d where g = gamma_cumul, d = 1 - rho
-    # Var(beta_j) approx= (1/d^2)*Var(g_j) + (g_j/d^2)^2*Var(rho) + 2*(g_j/d^3)*Cov(g_j, rho)
-    # Simplified: Var(beta_j) approx= Var(g_j)/d^2 + beta_j^2 * Var(rho) / d^2
-
-    for (kk in seq_len(k)) {
-      var_g <- est$gamma_cumul_cov[kk, kk, t_idx]
-      var_rho <- rho_se[t_idx]^2
-      b_val <- beta[kk, t_idx]
-
-      # Delta method approximation
-      var_beta <- (var_g + b_val^2 * var_rho) / (denom^2)
-      beta_se[kk, t_idx] <- sqrt(max(var_beta, 0))
-    }
-
-    # Full covariance matrix for beta (simplified)
-    # Using scaled gamma covariance
-    beta_cov[, , t_idx] <- est$gamma_cumul_cov[, , t_idx] / (denom^2)
+  # Long-run parameters: beta(tau) = gamma(tau) / (1 - sum(phi(tau))),
+  # gamma(tau) being the sum of the coefficients on x_t, ..., x_{t-q+1}
+  rho <- colSums(est$phi)
+  denom <- 1 - rho
+  if (any(abs(denom) < 1e-10)) {
+    warning("Near-unit root: long-run parameters may be unreliable")
+    denom[abs(denom) < 1e-10] <- 1e-10
   }
-
+  beta <- sweep(est$gamma_cumul, 2, denom, "/")
   rownames(beta) <- rownames(est$gamma_cumul)
-  rownames(beta_se) <- rownames(est$gamma_cumul)
   colnames(beta) <- colnames(est$gamma_cumul)
-  colnames(beta_se) <- colnames(est$gamma_cumul)
 
-  # Convert rho to speed of adjustment: rho - 1
-  rho_adj <- rho - 1
+  # Covariances of Cho, Kim and Shin (2015), within and across quantiles
+  cv <- cks_covariance(y, X, est, beta, tau, constant)
+  beta_cov <- cks_blocks(cv$beta, k, ntau)
+  beta_se <- matrix(sqrt(pmax(apply(beta_cov, 3, diag), 0)), nrow = k)
+  dimnames(beta_se) <- dimnames(beta)
+  phi_cov <- cks_blocks(cv$phi, est$p, ntau)
+  phi_se <- matrix(sqrt(pmax(apply(phi_cov, 3, diag), 0)), nrow = est$p)
+  dimnames(phi_se) <- dimnames(est$phi)
+  gamma_cov <- cks_blocks(cv$gamma, k, ntau)
+  gamma_se <- matrix(sqrt(pmax(apply(gamma_cov, 3, diag), 0)), nrow = k)
+  dimnames(gamma_se) <- dimnames(est$gamma_cumul)
 
-  return(list(
+  list(
     beta = beta,
     beta_se = beta_se,
     beta_cov = beta_cov,
-    rho = rho_adj,
-    rho_se = rho_se
-  ))
+    rho = rho - 1,
+    rho_se = sqrt(pmax(diag(cv$rho), 0)),
+    phi_se = phi_se,
+    phi_cov = phi_cov,
+    gamma = est$gamma_cumul,
+    gamma_se = gamma_se,
+    gamma_cov = gamma_cov,
+    cov_joint = cv[c("beta", "phi", "gamma", "rho")],
+    fhat = cv$fhat
+  )
 }
 
 
@@ -547,8 +539,8 @@ compute_ecm <- function(est, y, X, p, q, tau, constant = TRUE) {
     colnames(phi_star_se) <- colnames(phi_star)
   }
 
-  # Theta parameters (short-run dynamics in ECM)
-  # For simplicity, theta_0 = gamma_0 (contemporaneous impact of dx)
+  # Theta parameters (short-run dynamics in ECM): the coefficient of
+  # Delta x_t in the ECM form equals gamma_0 exactly
   theta <- est$gamma
   theta_se <- est$gamma_se
 

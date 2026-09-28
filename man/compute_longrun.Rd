@@ -4,7 +4,7 @@
 \alias{compute_longrun}
 \title{Compute Long-Run Parameters}
 \usage{
-compute_longrun(est, k, tau)
+compute_longrun(est, k, tau, y, X, constant = TRUE)
 }
 \arguments{
 \item{est}{QARDL estimation results from \code{qardl_estimate}.}

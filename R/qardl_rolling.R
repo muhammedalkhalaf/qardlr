@@ -21,7 +21,7 @@
 #'   \item{rho}{Matrix of ECM coefficients (nwindows x ntau)}
 #'   \item{wald_beta}{Matrix of beta constancy Wald statistics}
 #'   \item{wald_phi}{Matrix of phi constancy Wald statistics}
-#'   \item{wald_gamma}{Matrix of gamma constancy Wald statistics}
+#'   \item{wald_gamma}{Matrix of gamma constancy Wald statistics, one column per covariate}
 #'   \item{dates}{Vector of end dates for each window}
 #'   \item{window}{Window size used}
 #'   \item{method}{Method used ("rolling" or "recursive")}
@@ -109,7 +109,8 @@ qardl_rolling <- function(formula, data, tau = c(0.25, 0.50, 0.75),
   rho_mat <- matrix(NA, nrow = n_windows, ncol = ntau)
   wald_beta <- matrix(NA, nrow = n_windows, ncol = 1)
   wald_phi <- matrix(NA, nrow = n_windows, ncol = 1)
-  wald_gamma <- matrix(NA, nrow = n_windows, ncol = 1)
+  wald_gamma <- matrix(NA, nrow = n_windows, ncol = k,
+                       dimnames = list(NULL, colnames(X)))
   end_dates <- integer(n_windows)
 
   message(sprintf("Running %s QARDL with window = %d, %d iterations",
@@ -141,7 +142,7 @@ qardl_rolling <- function(formula, data, tau = c(0.25, 0.50, 0.75),
 
     # Compute long-run parameters
     lr <- tryCatch({
-      compute_longrun(est, k = k, tau = tau)
+      compute_longrun(est, k = k, tau = tau, y = y_sub, X = X_sub, constant = constant)
     }, error = function(e) NULL)
 
     if (is.null(lr)) {
@@ -151,26 +152,30 @@ qardl_rolling <- function(formula, data, tau = c(0.25, 0.50, 0.75),
     # Store results
     beta_array[, , w] <- lr$beta
     phi_array[, , w] <- est$phi
-    gamma_array[, , w] <- est$gamma
+    gamma_array[, , w] <- lr$gamma
     rho_mat[w, ] <- lr$rho
 
     # Compute Wald statistics if ntau >= 2
     if (ntau >= 2) {
       wald_b <- tryCatch({
-        wald_constancy_test(lr$beta, lr$beta_cov, est$nobs, "beta")$statistic
+        wald_constancy_test(lr$beta, lr$cov_joint$beta, est$nobs, "beta")$statistic
       }, error = function(e) NA)
 
       wald_p <- tryCatch({
-        wald_constancy_test(est$phi, est$phi_cov, est$nobs, "phi")$statistic
+        wald_constancy_test(est$phi, lr$cov_joint$phi, est$nobs, "phi")$statistic
       }, error = function(e) NA)
 
-      wald_g <- tryCatch({
-        wald_constancy_test(est$gamma, est$gamma_cov, est$nobs, "gamma")$statistic
-      }, error = function(e) NA)
+      wald_g <- vapply(seq_len(k), function(v) {
+        sel <- (seq_len(ntau) - 1) * k + v
+        tryCatch(wald_constancy_test(lr$gamma[v, , drop = FALSE],
+                                     lr$cov_joint$gamma[sel, sel, drop = FALSE],
+                                     est$nobs, "gamma")$statistic,
+                 error = function(e) NA_real_)
+      }, numeric(1))
 
       wald_beta[w, 1] <- wald_b
       wald_phi[w, 1] <- wald_p
-      wald_gamma[w, 1] <- wald_g
+      wald_gamma[w, ] <- wald_g
     }
 
     # Progress indicator
