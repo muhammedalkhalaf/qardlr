@@ -1,8 +1,8 @@
 Package: qardlr
 Type: Package
 Title: Quantile Autoregressive Distributed Lag Model
-Version: 1.1.0
-Date: 2026-09-28
+Version: 1.1.1
+Date: 2026-09-30
 Authors@R: c(
     person("Muhammad", "Alkhalaf", 
            email = "muhammedalkhalaf@gmail.com",

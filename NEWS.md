@@ -1,3 +1,7 @@
+# qardlr 1.1.1
+
+* Removed an empty item from the author list of `qardlr-package.Rd`, which caused an HTML validation NOTE ("trimming empty <li>"). No changes to code.
+
 # qardlr 1.1.0
 
 * Standard errors and Wald tests now follow Cho, Kim and Shin (2015): the covariance of the long-run parameters is Theorem 2 (with (X'PX)^-1 and the error density estimated by a Gaussian kernel with the Bofinger bandwidth), the covariance of phi and gamma is Theorem 1 with the estimator of equation (13), and the Wald tests across quantiles use the joint covariances of Theorems 3 and 4. The previous version assumed independence across quantiles, computed the long-run standard errors by a delta method without covariance terms, and fell back to a fixed covariance of 0.01 when the quantile regression covariance failed.
